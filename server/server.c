@@ -28,7 +28,7 @@ clinets_colletion clients;
 
 static void *treat_client(void *);
 void raspunde(void *);
-void send_msg(char *);
+void send_msg(char msg[]);
 
 void append_client(int,int);
 
@@ -124,7 +124,6 @@ void raspunde(void *arg)
     while(1)
     {
         char msg[256];
-        int i=0;
         struct thread tdL; 
         tdL= *((struct thread*)arg);
         if (read (tdL.client, &msg,sizeof(msg)) <= 0)
@@ -143,14 +142,14 @@ void raspunde(void *arg)
 
 }
 
-void send_msg(char *msg) 
+void send_msg(char msg[256]) 
 {
     /* returnam mesajul clientului */  
-    printf("Meajul trimis catre clienti: %s\n", msg);
+    printf("Mesajul trimis catre clienti: %s\n", msg);
     int i;
     for (i = 0; i <= clients.count; i++) 
     {
-        if (write (clients.clients[i], &msg, sizeof(int)) <= 0)
+        if (write (clients.clients[i], msg, 256) <= 0)
         {
             printf("[Clinet %d] ", i);
             perror ("[Thread]Eroare la write() catre client.\n");

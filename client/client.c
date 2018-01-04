@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <string.h>
+#include <ncurses.h>
 
 extern int errno;
 
@@ -16,7 +17,6 @@ int main (int argc, char *argv[])
 {
   int sd;
   struct sockaddr_in server;
-  char msg[256];
   char buf[10];
 
   /* cream socketul */
@@ -32,44 +32,71 @@ int main (int argc, char *argv[])
 
   server.sin_port = htons (PORT);
 
-  if (connect (sd, (struct sockaddr *) &server,sizeof (struct sockaddr)) == -1)
-  {
-    perror ("Eroare la connect.\n");
-    return errno;
-  }
-
+  // if (connect (sd, (struct sockaddr *) &server,sizeof (struct sockaddr)) == -1)
+  // {
+  //   perror ("Eroare la connect.\n");
+  //   return errno;
+  // }
+  initscr();
+  clear();
+  noecho();
+  cbreak();
   if(fork()) 
   {
+    char msg[256];
+    int i=0;
     while(1)
     {
-      /* citirea mesajului */
-      printf ("$:");
-      fflush (stdout);
-      fgets(&msg, 256, stdin);
-
-      /* trimiterea mesajului la server */
-      if (write (sd,&msg,sizeof(msg)) <= 0)
-      {
-        perror ("Eroare la write() spre server.\n");
-        return errno;
-      }
+      int ch;
+      ch = getch();
+      printw("%c", ch);
+      // if (ch != '\0')
+      // {
+      //   printw("%s", msg);
+      // } 
+      // else if (ch != '\b')
+      // {
+      //   msg[i++] = ch;
+      // }
+      // else 
+      // {
+      //   msg[i] = '\0';
+      //   i--;
+      // }
+      refresh();
     }
+    // char msg[256]; // stringul trimis cater server.
+    // while(1)
+    // {
+    //   /* citirea mesajului */
+    //   printf ("$:");
+    //   fflush (stdout);
+    //   fgets(&msg, 256, stdin);
+    //   /* trimiterea mesajului la server */
+
+    //   if (write (sd,&msg, sizeof(msg)) <= 0)
+    //   {
+    //     perror ("Eroare la write() spre server.\n");
+    //     return errno;
+    //   }
+    // }
   }
   else
   {
-    while(1) 
-    {
-      /* citirea raspunsului dat de server 
-        (apel blocant pina cind serverul raspunde) */
-      if (read (sd, &msg,sizeof(msg)) < 0)
-      {
-        perror ("Eroare la read() de la server.\n");
-        return errno;
-      }
-      /* afisam mesajul primit */
-      printf ("$: %s", msg);
-      fflush (stdout);
-    }
+    char msg2[256]; // stringul primit de la server.
+    // while(1) 
+    // {
+    //   /* citirea raspunsului dat de server 
+    //     (apel blocant pina cind serverul raspunde) */
+    //   if (read (sd, &msg2, 256) < 0)
+    //   {
+    //     perror ("Eroare la read() de la server.\n");
+    //     return errno;
+    //   }
+    //   /* afisam mesajul primit */
+    //   printf ("$: %s", msg2);
+    //   fflush (stdout);
+    // }
   }
   /* inchidem conexiunea, am terminat */
   close (sd);
