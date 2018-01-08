@@ -11,6 +11,8 @@
 #include <pthread.h>
 
 #include "client_structures.h"
+#include "../helper/helpers.h"
+#include "../shared/structs.h"
 
 extern int errno;
 
@@ -20,19 +22,20 @@ char message[256];
 int msg_index = 0;
 
 int connected[1] = {1};
-
+User user;
 int sd;
 
 messages_collection messages;
 
-static void *treat_send_messages(void *);
+static void *treatSendMessages(void *);
 
-int send_message();
-void append_message(char message[256]);
-void display_messages();
-void refresh_message();
+int treatMessage();
+void appendMessage(char message[256]);
+void displayMessage();
+void refreshMessages();
+void attemptLogin();
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
   struct sockaddr_in server;
   messages.count = 0;
@@ -44,79 +47,78 @@ int main (int argc, char *argv[])
   noecho();
   raw();
 
-  if ((sd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+  if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
-    perror ("Error at socket.\n");
+    perror("Error at socket.\n");
     return errno;
+    refresh();
   }
 
   server.sin_family = AF_INET;
 
   server.sin_addr.s_addr = inet_addr(argv[1]);
 
-  server.sin_port = htons (PORT);
+  server.sin_port = htons(PORT);
 
-  if (connect (sd, (struct sockaddr *) &server,sizeof (struct sockaddr)) == -1)
+  if (connect(sd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
   {
-    perror ("Error connecting.\n");
+    perror("Error connecting.\n");
     return errno;
   }
 
-  pthread_create(&send_message_thread, NULL, treat_send_messages, NULL);
+  loginUser();
+
+  pthread_create(&send_message_thread, NULL, treatSendMessages, NULL);
 
   char server_msg[256];
-  while(connected[0]) 
+  while (connected[0])
   {
-    printw("connread %d", connected[0]);
-    refresh();
-    if (read (sd, &server_msg, 256) < 0)
+    if (read(sd, &server_msg, 256) < 0)
     {
-      perror ("Eroare la read() de la server.\n");
+      perror("Eroare la read() de la server.\n");
       return errno;
     }
 
-    append_message(server_msg);
-    display_messages();
+    appendMessage(server_msg);
+    displayMessage();
   }
   printw("Am terminat de citit de la server");
-  if(pthread_join(send_message_thread, NULL)) 
+  if (pthread_join(send_message_thread, NULL))
   {
     perror("Error joining thread\n");
     return errno;
   }
+
   refresh();
-  /* inchidem conexiunea, am terminat */
   endwin();
   close(sd);
 }
 
-void *treat_send_messages(void *arg)
+void *treatSendMessages(void *arg)
 {
-  printw("Conn: %d -> You: ", connected[0]);
   refresh();
-  while(connected[0])
+  while (connected[0])
   {
     int ch;
     ch = getch();
     if (ch == '\n')
     {
       message[msg_index] = '\0';
-      send_message();
-      printw("conn: %d", connected[0]);
+      treatMessage();
       refresh();
-    } 
+    }
     else if (ch == 127) // delete because backspace does not exists
     {
-      if(msg_index > 0)
+      if (msg_index > 0)
       {
         msg_index--;
         message[msg_index] = '\0';
-        display_messages();
+        displayMessage();
       }
     }
-    else 
+    else
     {
-      printw("%c", ch);      
+      printw("%c", ch);
       message[msg_index++] = ch;
       message[msg_index] = '\0';
     }
@@ -124,31 +126,31 @@ void *treat_send_messages(void *arg)
   return NULL;
 }
 
-int send_message()
+int treatMessage()
 {
   if (strcmp(message, "/close") == 0)
   {
     connected[0] = 0;
-  } 
-  
-  if (write (sd,&message, sizeof(message)) <= 0)
+  }
+
+  if (write(sd, &message, sizeof(message)) <= 0)
   {
-    perror ("Eroare la write() spre server.\n");
+    perror("Eroare la write() spre server.\n");
     return errno;
   }
-  refresh_message();
+  refreshMessages();
 }
 
-void append_message(char message[256])
+void appendMessage(char message[256])
 {
   strcpy(messages.list[messages.count++], message);
 }
 
-void display_messages()
+void displayMessage()
 {
   clear();
   int index;
-  for(index = 0; index < messages.count; index ++)
+  for (index = 0; index < messages.count; index++)
   {
     printw("%s\n", messages.list[index]);
   }
@@ -156,8 +158,115 @@ void display_messages()
   refresh();
 }
 
-void refresh_message()
+void refreshMessages()
 {
   msg_index = 0;
   message[msg_index] = '\0';
+}
+
+void loginUser()
+{
+  int userInserted = 0;
+  int username_index = 0, password_index = 0;
+  LoginModel model;
+  printw("You need to login to be able chat!\nUsername: ");
+  while (1)
+  {
+    if (!userInserted)
+    {
+      int ch;
+      ch = getch();
+      if (ch == '\n')
+      {
+        model.username[username_index] = '\0';
+        printw("\nPassword: ");
+        userInserted = 1;
+        refresh();
+      }
+      else if (ch == 127) // delete because backspace does not exists
+      {
+        if (username_index > 0)
+        {
+          username_index--;
+          model.username[username_index] = '\0';
+          displayLogin(model, userInserted);
+        }
+      }
+      else
+      {
+        printw("%c", ch);
+        model.username[username_index++] = ch;
+        model.username[username_index] = '\0';
+      }
+    }
+    else
+    {
+      int ch;
+      ch = getch();
+      if (ch == '\n')
+      {
+        model.password[password_index] = '\0';
+        printw("\n");
+        refresh();
+
+        requstLogin(model);
+      }
+      else if (ch == 127) // delete because backspace does not exists
+      {
+        if (password_index > 0)
+        {
+          password_index--;
+          model.password[password_index] = '\0';
+          displayLogin(model, userInserted);
+        }
+      }
+      else
+      {
+        printw("*");
+        model.password[password_index++] = ch;
+        model.password[password_index] = '\0';
+      }
+    }
+  }
+}
+
+void requstLogin(LoginModel model)
+{
+  printw("Attempting to login...");
+  refresh();
+  char *response;
+  char *loginJson = serializeLoginModel(model);
+  char *json = malloc(sizeof(char) * 300);
+  strcpy(json, "login ");
+  strcat(json, loginJson);
+
+  if (write(sd, json, 256) <= 0)
+  {
+    perror("Eroare la write() spre server.\n");
+    return errno;
+  }
+
+  if (read(sd, &response, 256) < 0)
+  {
+    perror("Eroare la read() de la server.\n");
+    return errno;
+  }
+
+  printw("Response: %s\n!", response);
+}
+
+void displayLogin(LoginModel model, int userInserted)
+{
+  int i = 0;
+  clear();
+  printw("You need to login to be able chat!\nUsername: %s", model.username);
+  if (userInserted)
+  {
+    printw("\nPassword: ");
+    for (i = 0; i < strlen(model.password); i++)
+    {
+      printw("*");
+    }
+  }
+  refresh();
 }

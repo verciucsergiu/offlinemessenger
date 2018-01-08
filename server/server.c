@@ -18,14 +18,15 @@ extern int errno;
 
 clinets_colletion clients;
 
-static void *treat_client(void *);
-void raspunde(void *);
-void send_msg(char msg[]);
+static void *executeThread(void *);
+void treatUser(void *);
+void sendUserMessage(char msg[]);
+char *getRequestType(char *);
+void porcessRequest(char msg[], void *);
 
-void append_client(int,int);
+void appendClient(int, int);
 
-
-int main() 
+int main()
 {
     struct sockaddr_in server;
     struct sockaddr_in from;
@@ -33,7 +34,7 @@ int main()
     char *msg;
     int sd;
     pthread_t th[100];
-    int i=0;
+    int i = 0;
 
     if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
@@ -52,99 +53,111 @@ int main()
     server.sin_addr.s_addr = htonl(INADDR_ANY);
     server.sin_port = htons(PORT);
 
-    if(bind(sd, (struct sockaddr *) &server, sizeof(struct sockaddr)) == -1)
+    if (bind(sd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
     {
         perror("Eroare la bind.\n");
         return errno;
     }
 
-    if (listen(sd, 2) == -1) 
+    if (listen(sd, 2) == -1)
     {
         perror("Eroare la listen.\n");
         return errno;
     }
 
-    while(1)
+    while (1)
     {
         int client;
         thread *td;
         int length = sizeof(from);
         printf("Asteptam la portul %d...\n", PORT);
-        fflush (stdout);
-        if ((client = accept (sd, (struct sockaddr *) &from, &length)) < 0)
+        fflush(stdout);
+        if ((client = accept(sd, (struct sockaddr *)&from, &length)) < 0)
         {
-            perror ("[server]Eroare la accept().\n");
+            perror("[server]Eroare la accept().\n");
             continue;
         }
 
-        td=(struct thread*)malloc(sizeof(struct thread));	
-        td->id=i;
-        td->client=client;
+        td = (struct thread *)malloc(sizeof(struct thread));
+        td->id = i;
+        td->client = client;
 
         /* adaugarea clientului intr-o coletie.*/
-        append_client(i, client);
+        appendClient(i, client);
 
-        pthread_create(&th[i++], NULL, &treat_client, td);
-
+        pthread_create(&th[i++], NULL, &executeThread, td);
     }
-
 }
 
-void append_client(int index, int client)
+void appendClient(int index, int client)
 {
     clients.clients[index] = client;
     clients.count = index;
     printf("Clientul cu id: %d a fost adaugat in lista cu success!\n", index);
 }
 
-static void *treat_client(void * arg)
-{		
-    struct thread tdL; 
-    tdL= *((struct thread*)arg);
-    printf ("[thread]- %d - Asteptam mesajul...\n", tdL.id);
-    fflush (stdout);
+static void *executeThread(void *arg)
+{
+    struct thread tdL;
+    tdL = *((struct thread *)arg);
+    printf("[thread]- %d - Asteptam mesajul...\n", tdL.id);
+    fflush(stdout);
     pthread_detach(pthread_self());
-    raspunde((struct thData*)arg);
-    /* am terminat cu acest client, inchidem conexiunea */
-    close ((intptr_t)arg);
+    treatUser((struct thread *)arg);
+    close((intptr_t)arg);
     return NULL;
-  		
 }
 
-void raspunde(void *arg)
+
+void treatUser(void *arg)
 {
-    while(1)
+    while (1)
     {
-        char msg[256];
-        struct thread tdL; 
-        tdL= *((struct thread*)arg);
-        if (read (tdL.client, &msg,sizeof(msg)) <= 0)
+        char request[256];
+
+        struct thread currentThread;
+        currentThread = *((struct thread *)arg);
+        if (read(currentThread.client, &request, sizeof(request)) <= 0)
         {
-            printf("[Thread %d]\n",tdL.id);
-            perror ("Eroare la read() de la client.\n");
-        
+            printf("[Thread %d]\n", currentThread.id);
+            perror("Eroare la read() de la client.\n");
         }
-
-        send_msg(msg);
+        porcessRequest(request, &currentThread);
     }
-
 }
 
-void send_msg(char msg[256]) 
+void porcessRequest(char request[256], void * arg)
 {
-    /* returnam mesajul clientului */  
+    printf("request accepted!");
+    char *duplicatedRequest = strdup(request);
+    char *requestType = strtok(duplicatedRequest, " ");
+    if (strcmp(requestType, "login") == 0)
+    {
+        struct thread currentThread;
+        currentThread = *((struct thread *)arg);
+        if (write(currentThread.client, "Logged in with success", 256) <= 0)
+        {
+            perror("[Thread]Eroare la write() catre client.\n");
+        }
+    }
+}
+
+
+void sendUserMessage(char msg[256])
+{
     printf("Mesajul trimis catre clienti: %s\n", msg);
     int i;
-    for (i = 0; i <= clients.count; i++) 
+    for (i = 0; i <= clients.count; i++)
     {
-        if (write (clients.clients[i], msg, 256) <= 0)
+        if (write(clients.clients[i], msg, 256) <= 0)
         {
             printf("[Clinet %d] ", i);
-            perror ("[Thread]Eroare la write() catre client.\n");
+            perror("[Thread]Eroare la write() catre client.\n");
         }
         else
         {
-            printf ("[Client %d]Mesajul a fost trasmis cu succes.\n", i);
+            printf("[Client %d]Mesajul a fost trasmis cu succes.\n", i);
         }
     }
 }
+
