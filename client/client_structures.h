@@ -1,4 +1,4 @@
 typedef struct messages_collection {
     int count;
-    char list[10][256];
+    char list[100][256];
 }messages_collection;

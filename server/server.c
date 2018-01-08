@@ -10,19 +10,11 @@
 #include <signal.h>
 #include <pthread.h>
 
+#include "server_structures.h"
+
 #define PORT 3001
 
 extern int errno;
-
-typedef struct thread {
-	int id;
-	int client;
-}thread;
-
-typedef struct clinets_colletion {
-    int count;
-    int clients[200];
-} clinets_colletion;
 
 clinets_colletion clients;
 
@@ -39,7 +31,7 @@ int main()
     struct sockaddr_in from;
 
     char *msg;
-    int sd, pid;
+    int sd;
     pthread_t th[100];
     int i=0;
 
@@ -107,15 +99,15 @@ void append_client(int index, int client)
 
 static void *treat_client(void * arg)
 {		
-		struct thread tdL; 
-		tdL= *((struct thread*)arg);
-		printf ("[thread]- %d - Asteptam mesajul...\n", tdL.id);
-		fflush (stdout);
-		pthread_detach(pthread_self());
-		raspunde((struct thData*)arg);
-		/* am terminat cu acest client, inchidem conexiunea */
-		close ((intptr_t)arg);
-		return NULL;
+    struct thread tdL; 
+    tdL= *((struct thread*)arg);
+    printf ("[thread]- %d - Asteptam mesajul...\n", tdL.id);
+    fflush (stdout);
+    pthread_detach(pthread_self());
+    raspunde((struct thData*)arg);
+    /* am terminat cu acest client, inchidem conexiunea */
+    close ((intptr_t)arg);
+    return NULL;
   		
 }
 
@@ -132,11 +124,7 @@ void raspunde(void *arg)
             perror ("Eroare la read() de la client.\n");
         
         }
-        
-        // printf ("[Thread %d]Mesajul a fost receptionat...%s\n",tdL.id, msg);
-                    
-        // printf("[Thread %d]Trimitem mesajul inapoi...%s\n",tdL.id, msg);
-                
+
         send_msg(msg);
     }
 
