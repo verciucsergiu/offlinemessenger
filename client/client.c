@@ -22,7 +22,7 @@ char message[256];
 int msg_index = 0;
 
 int connected[1] = {1};
-User user;
+User connectedUser;
 int sd;
 
 messages_collection messages;
@@ -39,6 +39,7 @@ int main(int argc, char *argv[])
 {
   struct sockaddr_in server;
   messages.count = 0;
+  // connectedUser = malloc(sizeof(connectedUser));
 
   pthread_t send_message_thread;
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[])
     appendMessage(server_msg);
     displayMessage();
   }
-  printw("Am terminat de citit de la server");
+  // printw("Am terminat de citit de la server");
   if (pthread_join(send_message_thread, NULL))
   {
     perror("Error joining thread\n");
@@ -96,6 +97,7 @@ int main(int argc, char *argv[])
 
 void *treatSendMessages(void *arg)
 {
+  printw("%s: ", connectedUser.username);
   refresh();
   while (connected[0])
   {
@@ -154,7 +156,7 @@ void displayMessage()
   {
     printw("%s\n", messages.list[index]);
   }
-  printw("You: %s", message);
+  printw("%s: %s", connectedUser.username, message);
   refresh();
 }
 
@@ -209,7 +211,14 @@ void loginUser()
         printw("\n");
         refresh();
 
-        requstLogin(model);
+        if (requstLogin(model))
+        {
+          return;
+        }
+        else
+        {
+          loginUser();
+        }
       }
       else if (ch == 127) // delete because backspace does not exists
       {
@@ -230,11 +239,10 @@ void loginUser()
   }
 }
 
-void requstLogin(LoginModel model)
+int requstLogin(LoginModel model)
 {
-  printw("Attempting to login...");
-  refresh();
-  char *response;
+
+  char response[256];
   char *loginJson = serializeLoginModel(model);
   char *json = malloc(sizeof(char) * 300);
   strcpy(json, "login ");
@@ -245,14 +253,26 @@ void requstLogin(LoginModel model)
     perror("Eroare la write() spre server.\n");
     return errno;
   }
-
+  printw("\nAttempting to login...");
+  refresh();
   if (read(sd, &response, 256) < 0)
   {
     perror("Eroare la read() de la server.\n");
     return errno;
   }
 
-  printw("Response: %s\n!", response);
+  if (strcmp(response, "200") == 0)
+  {
+    strcpy(connectedUser.username, model.username);
+    return 1;
+  }
+  else
+  {
+    clear();
+    printw("Invalid credentials!\n");
+    refresh();
+    return 0;
+  }
 }
 
 void displayLogin(LoginModel model, int userInserted)

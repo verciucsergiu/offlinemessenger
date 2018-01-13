@@ -108,7 +108,6 @@ static void *executeThread(void *arg)
     return NULL;
 }
 
-
 void treatUser(void *arg)
 {
     while (1)
@@ -126,7 +125,7 @@ void treatUser(void *arg)
     }
 }
 
-void porcessRequest(char request[256], void * arg)
+void porcessRequest(char request[256], void *arg)
 {
     printf("request accepted!");
     char *duplicatedRequest = strdup(request);
@@ -135,13 +134,17 @@ void porcessRequest(char request[256], void * arg)
     {
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
-        if (write(currentThread.client, "Logged in with success", 256) <= 0)
+        if (write(currentThread.client, "200\0", 256) <= 0)
         {
             perror("[Thread]Eroare la write() catre client.\n");
         }
+        printf("Thread login accepted: %d\n", currentThread.id);
+    }
+    else
+    {
+        sendUserMessage(request);
     }
 }
-
 
 void sendUserMessage(char msg[256])
 {
@@ -160,4 +163,3 @@ void sendUserMessage(char msg[256])
         }
     }
 }
-

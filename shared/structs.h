@@ -1,4 +1,4 @@
 typedef struct User {
-    char * username;
+    char username[256];
     int messageId;
 } User;
