@@ -11,12 +11,14 @@
 #include <pthread.h>
 
 #include "server_structures.h"
+#include "db_handler/db_handler.h"
 
 #define PORT 3001
 
 extern int errno;
 
 clinets_colletion clients;
+MYSQL *dbConnection;
 
 static void *executeThread(void *);
 void treatUser(void *);
@@ -35,6 +37,9 @@ int main()
     int sd;
     pthread_t th[100];
     int i = 0;
+
+    dbConnection = connectToDatabase();
+    createDatabase(dbConnection);
 
     if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
