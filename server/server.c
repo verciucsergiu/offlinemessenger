@@ -12,6 +12,8 @@
 
 #include "server_structures.h"
 #include "db_handler/db_handler.h"
+#include "login/login.h"
+#include "../helper/helpers.h"
 
 #define PORT 3001
 
@@ -35,12 +37,12 @@ int main()
 
     char *msg;
     int sd;
-    pthread_t th[100];
+    pthread_t th[200];
     int i = 0;
 
     dbConnection = connectToDatabase();
     createDatabase(dbConnection);
-
+    mysql_close(dbConnection);
     if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("Eroare la socket.\n");
@@ -70,13 +72,14 @@ int main()
         return errno;
     }
 
+    printf("Asteptam la portul %d...\n", PORT);
+    fflush(stdout);
+
     while (1)
     {
         int client;
         thread *td;
         int length = sizeof(from);
-        printf("Asteptam la portul %d...\n", PORT);
-        fflush(stdout);
         if ((client = accept(sd, (struct sockaddr *)&from, &length)) < 0)
         {
             perror("[server]Eroare la accept().\n");
@@ -98,14 +101,12 @@ void appendClient(int index, int client)
 {
     clients.clients[index] = client;
     clients.count = index;
-    printf("Clientul cu id: %d a fost adaugat in lista cu success!\n", index);
 }
 
 static void *executeThread(void *arg)
 {
     struct thread tdL;
     tdL = *((struct thread *)arg);
-    printf("[thread]- %d - Asteptam mesajul...\n", tdL.id);
     fflush(stdout);
     pthread_detach(pthread_self());
     treatUser((struct thread *)arg);
@@ -118,46 +119,63 @@ void treatUser(void *arg)
     while (1)
     {
         char request[256];
-
+        memset( request, '\0', sizeof(char)*256);
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
         if (read(currentThread.client, &request, sizeof(request)) <= 0)
         {
-            printf("[Thread %d]\n", currentThread.id);
-            perror("Eroare la read() de la client.\n");
+            printf("[Thread %d] -> Disconnected. Connection lost.", currentThread.id);
+            return;
         }
-        porcessRequest(request, &currentThread);
+        else
+        {
+            porcessRequest(request, &currentThread);
+        }
     }
 }
 
 void porcessRequest(char request[256], void *arg)
 {
-    printf("request accepted!");
     char *duplicatedRequest = strdup(request);
     char *requestType = strtok(duplicatedRequest, " ");
     if (strcmp(requestType, "login") == 0)
     {
+        strcpy(request, request + 5);
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
-        if (write(currentThread.client, "200\0", 256) <= 0)
+
+        LoginModel model = deserializeLoginModel(request);
+
+        if (authenticateUser(model.username, model.password))
         {
-            perror("[Thread]Eroare la write() catre client.\n");
+
+            if (write(currentThread.client, "200\0", 256) <= 0)
+            {
+                perror("[Thread]Eroare la write() catre client.\n");
+            }
         }
-        printf("Thread login accepted: %d\n", currentThread.id);
+        else
+        {
+            if (write(currentThread.client, "404\0", 256) <= 0)
+            {
+                perror("[Thread]Eroare la write() catre client.\n");
+            }
+        }
     }
-    else
+    else if (strcmp(requestType, "send") == 0)
     {
+        strcpy(request, request + 4);
         sendUserMessage(request);
     }
 }
 
-void sendUserMessage(char msg[256])
+void sendUserMessage(char msg[1024])
 {
     printf("Mesajul trimis catre clienti: %s\n", msg);
     int i;
     for (i = 0; i <= clients.count; i++)
     {
-        if (write(clients.clients[i], msg, 256) <= 0)
+        if (write(clients.clients[i], msg, strlen(msg)+1) <= 0)
         {
             printf("[Clinet %d] ", i);
             perror("[Thread]Eroare la write() catre client.\n");

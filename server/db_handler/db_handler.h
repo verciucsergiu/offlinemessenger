@@ -1,3 +1,4 @@
+#include <string.h>
 #include <my_global.h>
 #include <mysql.h>
 
@@ -8,5 +9,6 @@
 MYSQL *connectToDatabase();
 void createDatabase(MYSQL *connection);
 
-
+int handleDBCommand(MYSQL *connection, char *command);
+int userDatabes();
 #endif

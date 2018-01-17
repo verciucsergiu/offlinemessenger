@@ -10,9 +10,13 @@
 #include <ncurses.h>
 #include <pthread.h>
 
-#include "client_structures.h"
 #include "../helper/helpers.h"
-#include "../shared/structs.h"
+
+typedef struct messages_collection
+{
+  int count;
+  Message list[100];
+} messages_collection;
 
 extern int errno;
 
@@ -30,16 +34,18 @@ messages_collection messages;
 static void *treatSendMessages(void *);
 
 int treatMessage();
-void appendMessage(char message[256]);
+void appendMessage(Message);
 void displayMessage();
 void refreshMessages();
 void attemptLogin();
+void closeApp();
+
+LoginModel loginUser();
 
 int main(int argc, char *argv[])
 {
   struct sockaddr_in server;
   messages.count = 0;
-  // connectedUser = malloc(sizeof(connectedUser));
 
   pthread_t send_message_thread;
 
@@ -51,8 +57,7 @@ int main(int argc, char *argv[])
   if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     perror("Error at socket.\n");
-    return errno;
-    refresh();
+    closeApp();
   }
 
   server.sin_family = AF_INET;
@@ -64,10 +69,15 @@ int main(int argc, char *argv[])
   if (connect(sd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
   {
     perror("Error connecting.\n");
-    return errno;
+    closeApp();
   }
 
-  loginUser();
+  printw("You need to login to be able chat!\n");
+  refresh();
+
+  while (!requstLogin(loginUser()))
+  {
+  }
 
   pthread_create(&send_message_thread, NULL, treatSendMessages, NULL);
 
@@ -77,16 +87,17 @@ int main(int argc, char *argv[])
     if (read(sd, &server_msg, 256) < 0)
     {
       perror("Eroare la read() de la server.\n");
-      return errno;
+      closeApp();
     }
-
-    appendMessage(server_msg);
+    Message msg = deserializeMessage(server_msg);
+    appendMessage(msg);
     displayMessage();
   }
-  // printw("Am terminat de citit de la server");
+
   if (pthread_join(send_message_thread, NULL))
   {
     perror("Error joining thread\n");
+    closeApp();
     return errno;
   }
 
@@ -134,18 +145,27 @@ int treatMessage()
   {
     connected[0] = 0;
   }
-
-  if (write(sd, &message, sizeof(message)) <= 0)
+  else
   {
-    perror("Eroare la write() spre server.\n");
-    return errno;
+    Message msg;
+    strcpy(msg.text, message);
+    refreshMessages();
+    strcpy(msg.username, connectedUser.username);
+    char *messageJson = serializeMessage(msg);
+    char *json = malloc(sizeof(char) * 300);
+    strcpy(json, "send ");
+    strcat(json, messageJson);
+    if (write(sd, json, strlen(json) + 1) <= 0)
+    {
+      perror("Eroare la write() spre server.\n");
+      return errno;
+    }
   }
-  refreshMessages();
 }
 
-void appendMessage(char message[256])
+void appendMessage(Message message)
 {
-  strcpy(messages.list[messages.count++], message);
+  messages.list[messages.count++] = message;
 }
 
 void displayMessage()
@@ -154,7 +174,10 @@ void displayMessage()
   int index;
   for (index = 0; index < messages.count; index++)
   {
-    printw("%s\n", messages.list[index]);
+    attron(A_BOLD);
+    printw("%s : ", messages.list[index].username);
+    attroff(A_BOLD);
+    printw("%s\n", messages.list[index].text);
   }
   printw("%s: %s", connectedUser.username, message);
   refresh();
@@ -166,12 +189,12 @@ void refreshMessages()
   message[msg_index] = '\0';
 }
 
-void loginUser()
+LoginModel loginUser()
 {
   int userInserted = 0;
   int username_index = 0, password_index = 0;
   LoginModel model;
-  printw("You need to login to be able chat!\nUsername: ");
+  printw("Username: ");
   while (1)
   {
     if (!userInserted)
@@ -210,15 +233,7 @@ void loginUser()
         model.password[password_index] = '\0';
         printw("\n");
         refresh();
-
-        if (requstLogin(model))
-        {
-          return;
-        }
-        else
-        {
-          loginUser();
-        }
+        return model;
       }
       else if (ch == 127) // delete because backspace does not exists
       {
@@ -253,8 +268,6 @@ int requstLogin(LoginModel model)
     perror("Eroare la write() spre server.\n");
     return errno;
   }
-  printw("\nAttempting to login...");
-  refresh();
   if (read(sd, &response, 256) < 0)
   {
     perror("Eroare la read() de la server.\n");
@@ -289,4 +302,12 @@ void displayLogin(LoginModel model, int userInserted)
     }
   }
   refresh();
+}
+
+void closeApp()
+{
+  refresh();
+  endwin();
+  close(sd);
+  exit(1);
 }

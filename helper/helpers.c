@@ -1,6 +1,4 @@
 #include "helpers.h"
-#include <string.h>
-#include <stdio.h>
 
 char *findFiledValue(char *, char *);
 
@@ -27,18 +25,40 @@ LoginModel deserializeLoginModel(char *json)
     return model;
 }
 
+char *serializeMessage(Message msg)
+{
+    char *json;
+    json = malloc(sizeof(char) * 256);
+    appendStartTojson(json);
+    appendStringToJson(json, "Text", msg.text);
+    appendNewProp(json);
+    appendStringToJson(json, "Username", msg.username);
+    appendEndTojson(json);
+    return json;
+}
+
+Message deserializeMessage(char *json)
+{
+    Message msg;
+    char *text = findFiledValue(json, "Text");
+    strcpy(msg.text, text);
+    char *username = findFiledValue(json, "Username");
+    strcpy(msg.username, username);
+    return msg;
+}
+
 char *findFiledValue(char *json, char *filedName)
 {
     char *text = strdup(json);
     char *word;
-    int i = 0, j;
-    word = strtok(text, " :\"\t\n}");
+    word = strtok(text, " :\"}");
     while (word != NULL)
     {
-        word = strtok(NULL, " :\"\t\n}");
+        word = strtok(NULL, " :\"}");
+
         if (strcmp(word, filedName) == 0)
         {
-            return strtok(NULL, " :\"\t\n}");
+            return strtok(NULL, ":\"}");
         }
     }
     return NULL;
@@ -46,32 +66,32 @@ char *findFiledValue(char *json, char *filedName)
 
 void appendStringToJson(char *json, char *fieldName, char *fieldValue)
 {
-    strcat(json, "\t\"");
+    strcat(json, "\"");
     strcat(json, fieldName);
-    strcat(json, "\" : \"");
+    strcat(json, "\":\"");
     strcat(json, fieldValue);
     strcat(json, "\"");
 }
 
 void appendNumberToJson(char json, char *fieldName, char *fieldValue)
 {
-    strcat(json, "\t\"");
+    strcat(json, "\"");
     strcat(json, fieldName);
-    strcat(json, "\" : ");
+    strcat(json, "\":");
     strcat(json, fieldValue);
 }
 
 void appendNewProp(char *json)
 {
-    strcat(json, ",\n");
+    strcat(json, ",");
 }
 
 void appendStartTojson(char *json)
 {
-    strcpy(json, "{\n");
+    strcpy(json, "{");
 }
 
 void appendEndTojson(char *json)
 {
-    strcat(json, "\n}\0");
+    strcat(json, "}\0");
 }
