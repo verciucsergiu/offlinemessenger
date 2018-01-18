@@ -35,6 +35,5 @@ int handleDBCommand(MYSQL *connection, char *command)
         fprintf(stderr, "%s\n", mysql_error(connection));
         return 0;
     }
-    printf("sql with success: %s!\n", command);
     return 1;
 }

@@ -38,8 +38,8 @@ void appendMessage(Message);
 void displayMessage();
 void refreshMessages();
 void attemptLogin();
-void closeApp();
-int acceptedCharacter(int);
+int closeApp();
+int isCharacterAccepted(int);
 void initWindow();
 LoginModel getUserLoginModel();
 
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
   if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
   {
     perror("Error at socket.\n");
-    closeApp();
+    return closeApp();
   }
 
   server.sin_family = AF_INET;
@@ -70,21 +70,28 @@ int main(int argc, char *argv[])
   if (connect(sd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
   {
     perror("Error connecting.\n");
-    closeApp();
+    return closeApp();
   }
 
   initWindow();
 
   pthread_create(&send_message_thread, NULL, treatSendMessages, NULL);
 
-  char server_msg[256];
+  char server_msg[1024];
   while (connected[0])
   {
-    if (read(sd, &server_msg, 256) < 0)
+    if (read(sd, &server_msg, 1024) < 0)
     {
       perror("Eroare la read() de la server.\n");
       closeApp();
+      break;
     }
+
+    if (strcmp(server_msg, "close") == 0)
+    {
+      break;
+    }
+
     Message msg = deserializeMessage(server_msg);
     appendMessage(msg);
     displayMessage();
@@ -93,8 +100,7 @@ int main(int argc, char *argv[])
   if (pthread_join(send_message_thread, NULL))
   {
     perror("Error joining thread\n");
-    closeApp();
-    return errno;
+    return closeApp();
   }
 
   refresh();
@@ -125,7 +131,7 @@ void *treatSendMessages(void *arg)
         displayMessage();
       }
     }
-    else if (acceptedCharacter(ch))
+    else if (isCharacterAccepted(ch))
     {
       printw("%c", ch);
       message[msg_index++] = ch;
@@ -142,10 +148,17 @@ int treatMessage()
     if (strcmp(message, "/close") == 0)
     {
       connected[0] = 0;
+      if (write(sd, "close", 6) <= 0)
+      {
+        perror("Eroare la write() spre server.\n");
+        return errno;
+      }
     }
     else
     {
       Message msg;
+      strcpy(msg.id, "0");
+      strcpy(msg.replyTo, "0");
       strcpy(msg.text, message);
       refreshMessages();
       strcpy(msg.username, connectedUser.username);
@@ -157,7 +170,7 @@ int treatMessage()
       if (write(sd, json, strlen(json) + 1) <= 0)
       {
         perror("Eroare la write() spre server.\n");
-        return errno;
+        return closeApp();
       }
     }
   }
@@ -175,12 +188,23 @@ void displayMessage()
   for (index = 0; index < messages.count; index++)
   {
     attron(A_BOLD);
-    printw("%s: ", messages.list[index].username);
+    printw("%s", messages.list[index].username);
+    indentMessages(15 - strlen(messages.list[index].username));
+    printw("@ %s -> %s : ", messages.list[index].id, messages.list[index].replyTo);
     attroff(A_BOLD);
     printw("%s\n", messages.list[index].text);
   }
   printw("%s: %s", connectedUser.username, message);
   refresh();
+}
+
+void indentMessages(int spaces)
+{
+  int i;
+  for (i = 0; i < spaces; i++)
+  {
+    printw(" ");
+  }
 }
 
 void refreshMessages()
@@ -189,12 +213,14 @@ void refreshMessages()
   message[msg_index] = '\0';
 }
 
-LoginModel getUserLoginModel()
+LoginModel getUserLoginModel(char *type)
 {
   int userInserted = 0;
   int username_index = 0, password_index = 0;
   LoginModel model;
+  printw("%s\n", type);
   printw("Username: ");
+  refresh();
   while (1)
   {
     if (!userInserted)
@@ -214,10 +240,10 @@ LoginModel getUserLoginModel()
         {
           username_index--;
           model.username[username_index] = '\0';
-          displayLogin(model, userInserted);
+          displayLogin(model, userInserted, type);
         }
       }
-      else if (acceptedCharacter(ch))
+      else if (isCharacterAccepted(ch))
       {
         printw("%c", ch);
         model.username[username_index++] = ch;
@@ -241,10 +267,10 @@ LoginModel getUserLoginModel()
         {
           password_index--;
           model.password[password_index] = '\0';
-          displayLogin(model, userInserted);
+          displayLogin(model, userInserted, type);
         }
       }
-      else if (acceptedCharacter(ch))
+      else if (isCharacterAccepted(ch))
       {
         printw("*");
         model.password[password_index++] = ch;
@@ -256,22 +282,22 @@ LoginModel getUserLoginModel()
 
 int requstLogin(LoginModel model)
 {
-  char response[256];
+  char response[6];
   char *loginJson = serializeLoginModel(model);
   char *json = malloc(sizeof(char) * 300);
   strcpy(json, "login ");
   strcat(json, loginJson);
 
-  if (write(sd, json, 300) <= 0)
+  if (write(sd, json, strlen(json)) <= 0)
   {
     perror("Eroare la write() spre server.\n");
-    return errno;
+    return closeApp();
   }
 
-  if (read(sd, &response, 256) < 0)
+  if (read(sd, &response, 6) < 0)
   {
     perror("Eroare la read() de la server.\n");
-    return errno;
+    return closeApp();
   }
 
   if (strcmp(response, "200") == 0)
@@ -281,30 +307,28 @@ int requstLogin(LoginModel model)
   }
   else
   {
-    clear();
-    printw("Invalid credentials!\n");
-    refresh();
     return 0;
   }
 }
+
 int requestRegister(LoginModel model)
 {
-  char response[256];
+  char response[6];
   char *loginJson = serializeLoginModel(model);
   char *json = malloc(sizeof(char) * 300);
   strcpy(json, "register ");
   strcat(json, loginJson);
 
-  if (write(sd, json, 300) <= 0)
+  if (write(sd, json, strlen(json)) <= 0)
   {
     perror("Eroare la write() spre server.\n");
-    return errno;
+    return closeApp();
   }
 
-  if (read(sd, &response, 256) < 0)
+  if (read(sd, &response, 6) < 0)
   {
     perror("Eroare la read() de la server.\n");
-    return errno;
+    return closeApp();
   }
 
   if (strcmp(response, "201") == 0)
@@ -321,11 +345,12 @@ int requestRegister(LoginModel model)
   }
 }
 
-void displayLogin(LoginModel model, int userInserted)
+void displayLogin(LoginModel model, int userInserted, char *type)
 {
   int i = 0;
   clear();
-  printw("You need to login to be able chat!\nUsername: %s", model.username);
+  printw("%s\n", type);
+  printw("Username: %s", model.username);
   if (userInserted)
   {
     printw("\nPassword: ");
@@ -357,17 +382,32 @@ void initWindow()
   else if (ch == '1')
   {
     clear();
-    while (!requstLogin(getUserLoginModel()))
+    if (requstLogin(getUserLoginModel("Login!")))
     {
+      printw("Login successfully!\n");
+      printw("Press any key to continue!");
+      refresh();
+      getch();
+      clear();
+      return;
+    }
+    else
+    {
+      printw("Invalid credentials!\n");
+      printw("Press any key to continue!");
+      refresh();
+      getch();
+      clear();
+      initWindow();
     }
   }
   else if (ch == '2')
   {
     clear();
-    int reg = requestRegister(getUserLoginModel());
+    int reg = requestRegister(getUserLoginModel("Register!"));
     if (reg == 1)
     {
-      printw("Registerd with success!\n");
+      printw("Register successfully!\n");
     }
     else if (reg == 0)
     {
@@ -375,32 +415,28 @@ void initWindow()
     }
     else
     {
-      printw("Register failed! Unknown issue! Pleas try again!");
+      printw("Register failed! Unknown issue! Pleas try again!\n");
     }
-    printw("Press ENTER to continue!");
+    printw("Press any key to continue!");
     refresh();
 
-    int ch;
-    ch = getch();
-    if (ch == '\n')
-    {
-      clear();
-      initWindow();
-    }
+    getch();
+    clear();
+    initWindow();
   }
 }
 
-void closeApp()
+int closeApp()
 {
   refresh();
   endwin();
   close(sd);
-  exit(1);
+  return 1;
 }
 
-int acceptedCharacter(int ch)
+int isCharacterAccepted(int ch)
 {
-  if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT)
+  if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT || ch == 39)
   {
     return 0;
   }
@@ -409,7 +445,7 @@ int acceptedCharacter(int ch)
   {
     return 1;
   }
-  if (ch >= 65 && ch <= 90)
+  if (ch >= 63 && ch <= 90)
   {
     return 1;
   }

@@ -119,8 +119,8 @@ void treatUser(void *arg)
 {
     while (1)
     {
-        char request[256];
-        memset(request, '\0', sizeof(char) * 256);
+        char request[1024];
+        memset(request, '\0', sizeof(char) * 1024);
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
         if (read(currentThread.client, &request, sizeof(request)) <= 0)
@@ -135,7 +135,7 @@ void treatUser(void *arg)
     }
 }
 
-void porcessRequest(char request[256], void *arg)
+void porcessRequest(char request[1024], void *arg)
 {
     char *duplicatedRequest = strdup(request);
     char *requestType = strtok(duplicatedRequest, " ");
@@ -149,14 +149,14 @@ void porcessRequest(char request[256], void *arg)
 
         if (authenticateUser(model.username, model.password))
         {
-            if (write(currentThread.client, "200\0", 256) <= 0)
+            if (write(currentThread.client, "200\0", 5) <= 0)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
             }
         }
         else
         {
-            if (write(currentThread.client, "404\0", 256) <= 0)
+            if (write(currentThread.client, "404\0", 5) <= 0)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
             }
@@ -169,7 +169,6 @@ void porcessRequest(char request[256], void *arg)
     }
     else if (strcmp(requestType, "register") == 0)
     {
-        printf("here1!\n");
         strcpy(request, request + 8);
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
@@ -178,19 +177,16 @@ void porcessRequest(char request[256], void *arg)
 
         if (canUserRegister(model.username))
         {
-            printf("here2!\n");
             if (registerUser(model.username, model.password))
             {
-                printf("here3!\n");
-                if (write(currentThread.client, "201\0", 256) <= 0)
+                if (write(currentThread.client, "201\0", 5) <= 0)
                 {
                     perror("[Thread]Eroare la write() catre client.\n");
                 }
             }
             else
             {
-                printf("here4!\n");
-                if (write(currentThread.client, "500\0", 256) <= 0)
+                if (write(currentThread.client, "500\0", 5) <= 0)
                 {
                     perror("[Thread]Eroare la write() catre client.\n");
                 }
@@ -198,7 +194,7 @@ void porcessRequest(char request[256], void *arg)
         }
         else
         {
-            if (write(currentThread.client, "404\0", 256) <= 0)
+            if (write(currentThread.client, "404\0", 5) <= 0)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
             }

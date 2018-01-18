@@ -30,7 +30,6 @@ int registerUser(char username[], char password[])
     strcat(query, password);
     strcat(query, "');\0");
 
-
     MYSQL *dbConnection = connectToDatabase();
     useDatabase(dbConnection);
     if (!handleDBCommand(dbConnection, query))
