@@ -24,11 +24,11 @@ int canUserRegister(char username[])
 }
 int registerUser(char username[], char password[])
 {
-    char query[256] = "INSERT INTO Users (Username, Password) VALUES ('";
+    char query[256] = "INSERT INTO Users (Username, Password, LastMessageId) VALUES ('";
     strcat(query, username);
     strcat(query, "', '");
     strcat(query, password);
-    strcat(query, "');\0");
+    strcat(query, "', 0);\0");
 
     MYSQL *dbConnection = connectToDatabase();
     useDatabase(dbConnection);

@@ -1,9 +1,13 @@
-typedef struct thread {
-	int id;
-	int client;
-}thread;
+typedef struct thread
+{
+    int id;
+    int client;
+    char username[40];
+    int connected;
+} thread;
 
-typedef struct clinets_colletion {
+typedef struct ClientsCollection
+{
     int count;
-    int clients[200];
-} clinets_colletion;
+    thread list[200];
+} ClientsCollection;

@@ -14,13 +14,14 @@
 #include "db_handler/db_handler.h"
 #include "login/login.h"
 #include "register/register.h"
-#include "../helper/helpers.h"
+#include "message_handler/message_handler.h"
+#include "../helper/json.h"
 
 #define PORT 3001
 
 extern int errno;
 
-clinets_colletion clients;
+ClientsCollection clients;
 MYSQL *dbConnection;
 
 static void *executeThread(void *);
@@ -100,8 +101,14 @@ int main()
 
 void appendClient(int index, int client)
 {
-    clients.clients[index] = client;
+    clients.list[index].client = client;
+    clients.list[index].connected = 1;
     clients.count = index;
+}
+
+void appendUsernameToClientsCollection(int index, char username[])
+{
+    strcpy(clients.list[index].username, username);
 }
 
 static void *executeThread(void *arg)
@@ -126,6 +133,7 @@ void treatUser(void *arg)
         if (read(currentThread.client, &request, sizeof(request)) <= 0)
         {
             printf("[Thread %d] -> Disconnected. Connection lost.\n", currentThread.id);
+            disconnect(currentThread.id);
             return;
         }
         else
@@ -137,13 +145,15 @@ void treatUser(void *arg)
 
 void porcessRequest(char request[1024], void *arg)
 {
+    struct thread currentThread;
+    currentThread = *((struct thread *)arg);
+
     char *duplicatedRequest = strdup(request);
     char *requestType = strtok(duplicatedRequest, " ");
+
     if (strcmp(requestType, "login") == 0)
     {
         strcpy(request, request + 5);
-        struct thread currentThread;
-        currentThread = *((struct thread *)arg);
 
         LoginModel model = deserializeLoginModel(request);
 
@@ -153,6 +163,8 @@ void porcessRequest(char request[1024], void *arg)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
             }
+            strcpy(currentThread.username, model.username);
+            appendUsernameToClientsCollection(currentThread.id, model.username);
         }
         else
         {
@@ -170,8 +182,6 @@ void porcessRequest(char request[1024], void *arg)
     else if (strcmp(requestType, "register") == 0)
     {
         strcpy(request, request + 8);
-        struct thread currentThread;
-        currentThread = *((struct thread *)arg);
 
         LoginModel model = deserializeLoginModel(request);
 
@@ -200,22 +210,40 @@ void porcessRequest(char request[1024], void *arg)
             }
         }
     }
+    else if (strcmp(requestType, "/close"))
+    {
+        if (write(currentThread.client, "close\0", 7) <= 0)
+        {
+            perror("[Thread]Eroare la write() catre client.\n");
+        }
+    }
 }
 
 void sendUserMessage(char msg[1024])
 {
-    printf("Mesajul trimis catre clienti: %s\n", msg);
+    Message message = deserializeMessage(msg);
+    char *id = pushMessageToDb(message.text, message.username, message.replyTo);
+    strcpy(message.id, id);
+    strcpy(msg, serializeMessage(message));
     int i;
     for (i = 0; i <= clients.count; i++)
     {
-        if (write(clients.clients[i], msg, strlen(msg) + 1) <= 0)
+        if (clients.list[i].connected)
         {
-            printf("[Clinet %d] ", i);
-            perror("[Thread]Eroare la write() catre client.\n");
-        }
-        else
-        {
-            printf("[Client %d]Mesajul a fost trasmis cu succes.\n", i);
+            if (write(clients.list[i].client, msg, strlen(msg) + 1) <= 0)
+            {
+                printf("Conncetion lost with %d logged in with : %s\n", i, clients.list[i].username);
+                disconnect(i);
+            }
+            else
+            {
+                updateLastMessageReceived(clients.list[i].username, message.id);
+            }
         }
     }
+}
+
+void disconnect(int index)
+{
+    clients.list[index].connected = 0;
 }

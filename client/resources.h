@@ -1,1 +1,0 @@
-#define CLOSE_COMMAND "/close"

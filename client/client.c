@@ -10,7 +10,7 @@
 #include <ncurses.h>
 #include <pthread.h>
 
-#include "../helper/helpers.h"
+#include "../helper/json.h"
 
 typedef struct messages_collection
 {
@@ -22,7 +22,7 @@ extern int errno;
 
 #define PORT 3001
 
-char message[256];
+char message[1000];
 int msg_index = 0;
 
 int connected[1] = {1};
@@ -35,7 +35,7 @@ static void *treatSendMessages(void *);
 
 int treatMessage();
 void appendMessage(Message);
-void displayMessage();
+void displayMessages();
 void refreshMessages();
 void attemptLogin();
 int closeApp();
@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
   initscr();
   clear();
   noecho();
+  keypad(stdscr, true);
   raw();
 
   if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
 
     Message msg = deserializeMessage(server_msg);
     appendMessage(msg);
-    displayMessage();
+    displayMessages();
   }
 
   if (pthread_join(send_message_thread, NULL))
@@ -110,6 +111,7 @@ int main(int argc, char *argv[])
 
 void *treatSendMessages(void *arg)
 {
+  getOfflineMessages(connectedUser.messageId);
   printw("%s: ", connectedUser.username);
   refresh();
   while (connected[0])
@@ -122,13 +124,18 @@ void *treatSendMessages(void *arg)
       treatMessage();
       refresh();
     }
-    else if (ch == 127) // delete because backspace does not exists
+    else if (ch == KEY_UP)
+    {
+      printw("ffs!!!!!!");
+      refresh();
+    }
+    else if (ch == KEY_BACKSPACE) // delete because backspace does not exists
     {
       if (msg_index > 0)
       {
         msg_index--;
         message[msg_index] = '\0';
-        displayMessage();
+        displayMessages();
       }
     }
     else if (isCharacterAccepted(ch))
@@ -159,7 +166,37 @@ int treatMessage()
       Message msg;
       strcpy(msg.id, "0");
       strcpy(msg.replyTo, "0");
+
+      char type[10];
+      int i = 0;
+      for (i = 0; i < 6; i++)
+      {
+        type[i] = message[i];
+      }
+      type[6] = '\0';
+      i = 0;
+      if (strcmp(type, "/reply") == 0)
+      {
+        strcpy(message, message + 7);
+        while (message[i] != ' ')
+        {
+          if (message[i] >= '0' && message[i] <= '9')
+          {
+            msg.replyTo[i] = message[i];
+            i++;
+          }
+          else
+          {
+            refreshMessages();
+            displayMessages();
+            return 0;
+          }
+        }
+
+        strcpy(message, message + i + 1);
+      }
       strcpy(msg.text, message);
+
       refreshMessages();
       strcpy(msg.username, connectedUser.username);
       char *messageJson = serializeMessage(msg);
@@ -172,6 +209,8 @@ int treatMessage()
         perror("Eroare la write() spre server.\n");
         return closeApp();
       }
+
+      return 1;
     }
   }
 }
@@ -181,7 +220,11 @@ void appendMessage(Message message)
   messages.list[messages.count++] = message;
 }
 
-void displayMessage()
+void getOfflineMessages(char messageId[])
+{
+}
+
+void displayMessages()
 {
   clear();
   int index;
@@ -189,8 +232,17 @@ void displayMessage()
   {
     attron(A_BOLD);
     printw("%s", messages.list[index].username);
-    indentMessages(15 - strlen(messages.list[index].username));
-    printw("@ %s -> %s : ", messages.list[index].id, messages.list[index].replyTo);
+    indentMessages(15 - strlen(messages.list[index].username), "-");
+    if (strcmp(messages.list[index].replyTo, "0") == 0)
+    {
+      printw("@ %s no reply", messages.list[index].id);
+      indentMessages(7, " ");
+      printw(": ");
+    }
+    else
+    {
+      printw("@ %s reply to msg %s : ", messages.list[index].id, messages.list[index].replyTo);
+    }
     attroff(A_BOLD);
     printw("%s\n", messages.list[index].text);
   }
@@ -198,12 +250,12 @@ void displayMessage()
   refresh();
 }
 
-void indentMessages(int spaces)
+void indentMessages(int spaces, char *c)
 {
   int i;
   for (i = 0; i < spaces; i++)
   {
-    printw(" ");
+    printw(c);
   }
 }
 
@@ -234,7 +286,7 @@ LoginModel getUserLoginModel(char *type)
         userInserted = 1;
         refresh();
       }
-      else if (ch == 127) // delete because backspace does not exists
+      else if (ch == KEY_BACKSPACE)
       {
         if (username_index > 0)
         {
@@ -243,7 +295,7 @@ LoginModel getUserLoginModel(char *type)
           displayLogin(model, userInserted, type);
         }
       }
-      else if (isCharacterAccepted(ch))
+      else if (isCharacterAccepted(ch) && username_index <= 15)
       {
         printw("%c", ch);
         model.username[username_index++] = ch;
@@ -261,7 +313,7 @@ LoginModel getUserLoginModel(char *type)
         refresh();
         return model;
       }
-      else if (ch == 127) // delete because backspace does not exists
+      else if (ch == KEY_BACKSPACE)
       {
         if (password_index > 0)
         {
@@ -270,7 +322,7 @@ LoginModel getUserLoginModel(char *type)
           displayLogin(model, userInserted, type);
         }
       }
-      else if (isCharacterAccepted(ch))
+      else if (isCharacterAccepted(ch) && password_index <= 20)
       {
         printw("*");
         model.password[password_index++] = ch;

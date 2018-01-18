@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include "../shared/structs.h"
 
-#ifndef HELPERS_H_
-#define HELPERS_H_
+#ifndef JSON_H_
+#define JSON_H_
 
 char *serializeLoginModel(LoginModel model);
 LoginModel deserializeLoginModel(char *json);

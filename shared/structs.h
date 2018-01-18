@@ -1,14 +1,17 @@
-typedef struct User {
+typedef struct User
+{
     char username[1024];
-    char messageId;
+    char messageId[100];
 } User;
 
-typedef struct LoginModel{
+typedef struct LoginModel
+{
     char username[31];
     char password[31];
 } LoginModel;
 
-typedef struct Message {
+typedef struct Message
+{
     char id[100];
     char text[1024];
     char username[31];

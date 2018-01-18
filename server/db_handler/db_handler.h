@@ -10,5 +10,6 @@ MYSQL *connectToDatabase();
 void createDatabase(MYSQL *connection);
 
 int handleDBCommand(MYSQL *connection, char *command);
-int userDatabes();
+int useDatabase();
+
 #endif

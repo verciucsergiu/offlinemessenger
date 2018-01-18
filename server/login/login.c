@@ -19,7 +19,6 @@ int authenticateUser(char username[], char password[])
         MYSQL_ROW row;
         row = mysql_fetch_row(result);
         res = atoi(row[0]);
-        printf("here : %d", res);
     }
     mysql_free_result(result);
     mysql_close(dbConnection);
