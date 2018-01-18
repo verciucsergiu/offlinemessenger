@@ -2,7 +2,7 @@
 
 int authenticateUser(char username[], char password[])
 {
-
+    int res;
     char query[256] = "SELECT count(1) FROM Users WHERE username = '";
     strcat(query, username);
     strcat(query, "' AND Password = '");
@@ -18,8 +18,10 @@ int authenticateUser(char username[], char password[])
     {
         MYSQL_ROW row;
         row = mysql_fetch_row(result);
-        return atoi(row[0]);
+        res = atoi(row[0]);
+        printf("here : %d", res);
     }
-    
-    return 0;
+    mysql_free_result(result);
+    mysql_close(dbConnection);
+    return res;
 }

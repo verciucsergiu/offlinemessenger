@@ -13,6 +13,7 @@
 #include "server_structures.h"
 #include "db_handler/db_handler.h"
 #include "login/login.h"
+#include "register/register.h"
 #include "../helper/helpers.h"
 
 #define PORT 3001
@@ -72,7 +73,7 @@ int main()
         return errno;
     }
 
-    printf("Asteptam la portul %d...\n", PORT);
+    printf("Server up and running! Users now can connect!\n");
     fflush(stdout);
 
     while (1)
@@ -119,12 +120,12 @@ void treatUser(void *arg)
     while (1)
     {
         char request[256];
-        memset( request, '\0', sizeof(char)*256);
+        memset(request, '\0', sizeof(char) * 256);
         struct thread currentThread;
         currentThread = *((struct thread *)arg);
         if (read(currentThread.client, &request, sizeof(request)) <= 0)
         {
-            printf("[Thread %d] -> Disconnected. Connection lost.", currentThread.id);
+            printf("[Thread %d] -> Disconnected. Connection lost.\n", currentThread.id);
             return;
         }
         else
@@ -148,7 +149,6 @@ void porcessRequest(char request[256], void *arg)
 
         if (authenticateUser(model.username, model.password))
         {
-
             if (write(currentThread.client, "200\0", 256) <= 0)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
@@ -167,6 +167,43 @@ void porcessRequest(char request[256], void *arg)
         strcpy(request, request + 4);
         sendUserMessage(request);
     }
+    else if (strcmp(requestType, "register") == 0)
+    {
+        printf("here1!\n");
+        strcpy(request, request + 8);
+        struct thread currentThread;
+        currentThread = *((struct thread *)arg);
+
+        LoginModel model = deserializeLoginModel(request);
+
+        if (canUserRegister(model.username))
+        {
+            printf("here2!\n");
+            if (registerUser(model.username, model.password))
+            {
+                printf("here3!\n");
+                if (write(currentThread.client, "201\0", 256) <= 0)
+                {
+                    perror("[Thread]Eroare la write() catre client.\n");
+                }
+            }
+            else
+            {
+                printf("here4!\n");
+                if (write(currentThread.client, "500\0", 256) <= 0)
+                {
+                    perror("[Thread]Eroare la write() catre client.\n");
+                }
+            }
+        }
+        else
+        {
+            if (write(currentThread.client, "404\0", 256) <= 0)
+            {
+                perror("[Thread]Eroare la write() catre client.\n");
+            }
+        }
+    }
 }
 
 void sendUserMessage(char msg[1024])
@@ -175,7 +212,7 @@ void sendUserMessage(char msg[1024])
     int i;
     for (i = 0; i <= clients.count; i++)
     {
-        if (write(clients.clients[i], msg, strlen(msg)+1) <= 0)
+        if (write(clients.clients[i], msg, strlen(msg) + 1) <= 0)
         {
             printf("[Clinet %d] ", i);
             perror("[Thread]Eroare la write() catre client.\n");

@@ -51,10 +51,10 @@ char *findFiledValue(char *json, char *filedName)
 {
     char *text = strdup(json);
     char *word;
-    word = strtok(text, " :\"}");
+    word = strtok(text, ":\"}");
     while (word != NULL)
     {
-        word = strtok(NULL, " :\"}");
+        word = strtok(NULL, ":\"}");
 
         if (strcmp(word, filedName) == 0)
         {
