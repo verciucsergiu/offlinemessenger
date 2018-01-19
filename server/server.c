@@ -182,6 +182,38 @@ void porcessRequest(char request[1024], void *arg)
         strcpy(request, request + 4);
         sendUserMessage(request);
     }
+    else if (strcmp(requestType, "get") == 0)
+    {
+        strcpy(request, request + 4);
+        int id = atoi(request);
+        int last = lastMessageId();
+        char lastId[100];
+        sprintf(lastId, "%d", last);
+        if (id <= last)
+        {
+            Message msg = DBMessagetoMessage(getMessageById(request));
+
+            char json[1024];
+            if (strcmp(request, lastId) == 0)
+            {
+                strcpy(json, "0");
+                currentThread.blocked = 0;
+                clients.list[currentThread.id].blocked = 0;
+            }
+            else
+            {
+                strcpy(json, "1");
+                currentThread.blocked = 1;
+                clients.list[currentThread.id].blocked = 1;
+            }
+            strcat(json, serializeMessage(msg));
+
+            if (write(currentThread.client, json, strlen(json) + 1) <= 0)
+            {
+                perror("[Thread]Eroare la write() catre client.\n");
+            }
+        }
+    }
     else if (strcmp(requestType, "register") == 0)
     {
         strcpy(request, request + 8);
@@ -216,18 +248,18 @@ void porcessRequest(char request[1024], void *arg)
     else if (strcmp(requestType, "first") == 0)
     {
         int lastIdInserted = lastMessageId();
-        int currentId = lastIdInserted - 10;
-        for (; currentId < lastIdInserted; currentId++)
+        int currentId = lastIdInserted - 10 > 0 ? lastIdInserted - 10 : 1;
+        for (; currentId <= lastIdInserted; currentId++)
         {
             char id[100];
             sprintf(id, "%d", currentId);
             Message msg = DBMessagetoMessage(getMessageById(id));
-            char *json = serializeMessage(msg);
+            char json[100] = "0";
+            strcat(json, serializeMessage(msg));
             if (write(currentThread.client, json, strlen(json) + 1) <= 0)
             {
                 perror("[Thread]Eroare la write() catre client.\n");
             }
-            printf("Message send? %s \n", json);
         }
     }
     else if (strcmp(requestType, "close") == 0)
@@ -244,20 +276,17 @@ void sendUserMessage(char msg[1024])
     Message message = deserializeMessage(msg);
     char *id = pushMessageToDb(message.text, message.username, message.replyTo);
     strcpy(message.id, id);
-    strcpy(msg, serializeMessage(message));
+    strcpy(msg, "0");
+    strcat(msg, serializeMessage(message));
     int i;
     for (i = 0; i <= clients.count; i++)
     {
-        if (clients.list[i].connected)
+        if (clients.list[i].connected && !clients.list[i].blocked)
         {
             if (write(clients.list[i].client, msg, strlen(msg) + 1) <= 0)
             {
                 printf("Conncetion lost with %d logged in with : %s\n", i, clients.list[i].username);
                 disconnect(i);
-            }
-            else
-            {
-                updateLastMessageReceived(clients.list[i].username, message.id);
             }
         }
     }

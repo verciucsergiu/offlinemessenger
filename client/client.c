@@ -25,6 +25,9 @@ extern int errno;
 char message[1000];
 int msg_index = 0;
 
+int old = 0;
+int blocked = 0;
+
 int connected[1] = {1};
 User connectedUser;
 int sd;
@@ -42,6 +45,8 @@ int closeApp();
 int isCharacterAccepted(int);
 void initWindow();
 LoginModel getUserLoginModel();
+void requestOld();
+void requestNew();
 
 int main(int argc, char *argv[])
 {
@@ -52,6 +57,10 @@ int main(int argc, char *argv[])
 
   initscr();
   clear();
+  start_color();
+  init_pair(1, COLOR_GREEN, COLOR_BLACK);
+  init_pair(2, COLOR_BLUE, COLOR_BLACK);
+  init_pair(3, COLOR_YELLOW, COLOR_BLACK);
   noecho();
   keypad(stdscr, true);
   raw();
@@ -92,7 +101,15 @@ int main(int argc, char *argv[])
     {
       break;
     }
-
+    if (server_msg[0] == '1')
+    {
+      blocked = 1;
+    }
+    else
+    {
+      blocked = 0;
+    }
+    strcpy(server_msg, server_msg + 1);
     Message msg = deserializeMessage(server_msg);
     appendMessage(msg);
     displayMessages();
@@ -123,6 +140,14 @@ void *treatSendMessages(void *arg)
       message[msg_index] = '\0';
       treatMessage();
       refresh();
+    }
+    else if (ch == KEY_UP)
+    {
+      requestOld();
+    }
+    else if (ch == KEY_DOWN)
+    {
+      requestNew();
     }
     else if (ch == KEY_BACKSPACE)
     {
@@ -212,18 +237,30 @@ int treatMessage()
 
 void appendMessage(Message message)
 {
-  if (messages.count == 10)
+  if (old)
   {
     int i;
-    for (i = 0; i < 9; i++)
+    for (i = 9; i >= 1; i--)
     {
-      messages.list[i] = messages.list[i + 1];
+      messages.list[i] = messages.list[i - 1];
     }
-    messages.list[9] = message;
+    messages.list[0] = message;
   }
   else
   {
-    messages.list[messages.count++] = message;
+    if (messages.count == 10)
+    {
+      int i;
+      for (i = 0; i < 9; i++)
+      {
+        messages.list[i] = messages.list[i + 1];
+      }
+      messages.list[9] = message;
+    }
+    else
+    {
+      messages.list[messages.count++] = message;
+    }
   }
 }
 
@@ -240,11 +277,29 @@ void displayMessages()
 {
   clear();
   int index;
+  if (messages.count == 10 && strcmp(messages.list[0].id, "1"))
+  {
+    attron(A_BOLD);
+    attron(COLOR_PAIR(1));
+    indentMessages(50, "+");
+    attroff(COLOR_PAIR(1));
+    attroff(A_BOLD);
+    printw("\n");
+  }
   for (index = 0; index < messages.count; index++)
   {
     attron(A_BOLD);
-    printw("%s", messages.list[index].username);
-    indentMessages(15 - strlen(messages.list[index].username), "-");
+    if (strcmp(messages.list[index].username, connectedUser.username) == 0)
+    {
+      attron(COLOR_PAIR(2));
+      printw("%s", messages.list[index].username);
+      attroff(COLOR_PAIR(2));
+    }
+    else
+    {
+      printw("%s", messages.list[index].username);
+    }
+    indentMessages(16 - strlen(messages.list[index].username), "-");
     if (strcmp(messages.list[index].replyTo, "0") == 0)
     {
       printw("@ %s no reply", messages.list[index].id);
@@ -255,10 +310,26 @@ void displayMessages()
     {
       printw("@ %s reply to msg %s : ", messages.list[index].id, messages.list[index].replyTo);
     }
-    attroff(A_BOLD);
     printw("%s\n", messages.list[index].text);
+    attroff(A_BOLD);
   }
-  printw("%s: %s", connectedUser.username, message);
+
+  if (blocked)
+  {
+    attron(A_BOLD);
+    attron(COLOR_PAIR(1));
+    indentMessages(50, "+");
+    attroff(COLOR_PAIR(1));
+    attroff(A_BOLD);
+    printw("\n");
+  }
+
+  attron(A_BOLD);
+  attron(COLOR_PAIR(3));
+  printw("%s: ", connectedUser.username);
+  attroff(COLOR_PAIR(3));
+  attroff(A_BOLD);
+  printw("%s", message);
   refresh();
 }
 
@@ -372,6 +443,45 @@ int requstLogin(LoginModel model)
   else
   {
     return 0;
+  }
+}
+
+void requestNew()
+{
+  if (messages.count == 10)
+  {
+    old = 0;
+    char request[256] = "get ";
+    int requestId = atoi(messages.list[9].id) + 1;
+    char id[100];
+    sprintf(id, "%d", requestId);
+    strcat(request, id);
+    strcat(request, "\0");
+
+    if (write(sd, request, strlen(request) + 1) <= 0)
+    {
+      perror("Eroare la write() spre server.\n");
+      return closeApp();
+    }
+  }
+}
+
+void requestOld()
+{
+  if (messages.count == 10 && strcmp(messages.list[0].id, "1"))
+  {
+    old = 1;
+    char request[256] = "get ";
+    int requestId = atoi(messages.list[0].id) - 1;
+    char id[100];
+    sprintf(id, "%d", requestId);
+    strcat(request, id);
+    strcat(request, "\0");
+    if (write(sd, request, strlen(request) + 1) <= 0)
+    {
+      perror("Eroare la write() spre server.\n");
+      return closeApp();
+    }
   }
 }
 

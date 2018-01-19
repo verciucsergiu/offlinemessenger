@@ -4,6 +4,7 @@ typedef struct thread
     int client;
     char username[40];
     int connected;
+    int blocked;
 } thread;
 
 typedef struct ClientsCollection

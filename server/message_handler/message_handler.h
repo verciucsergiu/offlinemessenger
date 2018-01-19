@@ -17,6 +17,4 @@ int lastMessageId();
 
 DBMessage getMessageById(char id[]);
 
-int updateLastMessageReceived(char username[], char id[]);
-
 #endif

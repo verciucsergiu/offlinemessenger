@@ -71,17 +71,3 @@ DBMessage getMessageById(char id[])
         return msg;
     }
 }
-
-int updateLastMessageReceived(char username[], char id[])
-{
-    char query[1024];
-    MYSQL *dbConnection = connectToDatabase();
-    useDatabase(dbConnection);
-    strcpy(query, "UPDATE Users SET LastMessageId = ");
-    strcat(query, id);
-    strcat(query, " WHERE Username = '");
-    strcat(query, username);
-    strcat(query, "';\0");
-
-    return handleDBCommand(dbConnection, query);
-}
