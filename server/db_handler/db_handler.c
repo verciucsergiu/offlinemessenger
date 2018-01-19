@@ -10,7 +10,6 @@ MYSQL *connectToDatabase()
         mysql_close(con);
         exit(1);
     }
-    printf("Connected to the database with success!\n");
     return con;
 }
 

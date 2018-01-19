@@ -33,7 +33,7 @@ int lastMessageId()
     char query[1024];
     MYSQL *dbConnection = connectToDatabase();
     useDatabase(dbConnection);
-    strcpy(query, "SELECT LAST_INSERT_ID();");
+    strcpy(query, "SELECT max(Id) FROM Messages;");
     handleDBCommand(dbConnection, query);
     MYSQL_RES *result = mysql_store_result(dbConnection);
 

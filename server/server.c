@@ -32,6 +32,9 @@ void porcessRequest(char msg[], void *);
 
 void appendClient(int, int);
 
+Message DBMessagetoMessage(DBMessage dbMsg);
+char *toString(int num);
+
 int main()
 {
     struct sockaddr_in server;
@@ -210,7 +213,24 @@ void porcessRequest(char request[1024], void *arg)
             }
         }
     }
-    else if (strcmp(requestType, "/close"))
+    else if (strcmp(requestType, "first") == 0)
+    {
+        int lastIdInserted = lastMessageId();
+        int currentId = lastIdInserted - 10;
+        for (; currentId < lastIdInserted; currentId++)
+        {
+            char id[100];
+            sprintf(id, "%d", currentId);
+            Message msg = DBMessagetoMessage(getMessageById(id));
+            char *json = serializeMessage(msg);
+            if (write(currentThread.client, json, strlen(json) + 1) <= 0)
+            {
+                perror("[Thread]Eroare la write() catre client.\n");
+            }
+            printf("Message send? %s \n", json);
+        }
+    }
+    else if (strcmp(requestType, "close") == 0)
     {
         if (write(currentThread.client, "close\0", 7) <= 0)
         {
@@ -246,4 +266,22 @@ void sendUserMessage(char msg[1024])
 void disconnect(int index)
 {
     clients.list[index].connected = 0;
+}
+
+char *toString(int num)
+{
+    char str[200];
+    sprintf(str, "%d", num);
+    return str;
+}
+
+Message DBMessagetoMessage(DBMessage dbMsg)
+{
+    Message msg;
+    strcpy(msg.id, dbMsg.id);
+    strcpy(msg.text, dbMsg.text);
+    strcpy(msg.username, dbMsg.username);
+    strcpy(msg.replyTo, dbMsg.replyTo);
+
+    return msg;
 }

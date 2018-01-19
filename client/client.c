@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 
 void *treatSendMessages(void *arg)
 {
-  getOfflineMessages(connectedUser.messageId);
+  getMessages();
   printw("%s: ", connectedUser.username);
   refresh();
   while (connected[0])
@@ -124,12 +124,7 @@ void *treatSendMessages(void *arg)
       treatMessage();
       refresh();
     }
-    else if (ch == KEY_UP)
-    {
-      printw("ffs!!!!!!");
-      refresh();
-    }
-    else if (ch == KEY_BACKSPACE) // delete because backspace does not exists
+    else if (ch == KEY_BACKSPACE)
     {
       if (msg_index > 0)
       {
@@ -217,11 +212,28 @@ int treatMessage()
 
 void appendMessage(Message message)
 {
-  messages.list[messages.count++] = message;
+  if (messages.count == 10)
+  {
+    int i;
+    for (i = 0; i < 9; i++)
+    {
+      messages.list[i] = messages.list[i + 1];
+    }
+    messages.list[9] = message;
+  }
+  else
+  {
+    messages.list[messages.count++] = message;
+  }
 }
 
-void getOfflineMessages(char messageId[])
+void getMessages()
 {
+  if (write(sd, "first", 6) <= 0)
+  {
+    perror("Eroare la write() spre server.\n");
+    return errno;
+  }
 }
 
 void displayMessages()
@@ -480,9 +492,9 @@ void initWindow()
 
 int closeApp()
 {
-  refresh();
   endwin();
   close(sd);
+  connected[0] = 0;
   return 1;
 }
 
